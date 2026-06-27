@@ -13,6 +13,7 @@ from django.template.loader import get_template, TemplateDoesNotExist
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
 from .notifications import create_notification
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from .models import DemoURL
 
@@ -2035,7 +2036,14 @@ def admin_update_user_status(request):
 @login_required
 def mark_all_notifications_read(request):
     Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
-    return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+    referer = request.META.get('HTTP_REFERER')
+    if referer and url_has_allowed_host_and_scheme(
+        referer,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return redirect(referer)
+    return redirect('dashboard')
     
 
 @login_required
