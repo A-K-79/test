@@ -12,6 +12,7 @@ from django.contrib.auth.models import User
 from django.template.loader import get_template, TemplateDoesNotExist
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
+from .notifications import create_notification
 
 from .models import DemoURL
 
@@ -994,6 +995,9 @@ def send_chat_message(request):
             content=content,
             file=uploaded_file
         )
+        if receiver and receiver != request.user:
+            sender_name = request.user.get_full_name() or request.user.username
+            create_notification(receiver, f"New message from {sender_name}")
         
         is_image = False
         is_pdf = False
@@ -2026,6 +2030,12 @@ def admin_update_user_status(request):
         return JsonResponse({'status': 'success', 'message': 'User status updated successfully'})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+
+@login_required
+def mark_all_notifications_read(request):
+    Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+    return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
     
 
 @login_required
@@ -3127,4 +3137,3 @@ def client_demo_action(request, demo_id, action):
             Notification.objects.create(user=demo.project.manager, message=f"Client Rejected Demo: {demo.project.title}")
             
     return redirect('client_demo_approval')
-
