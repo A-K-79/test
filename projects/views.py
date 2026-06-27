@@ -12,7 +12,7 @@ from django.contrib.auth.models import User
 from django.template.loader import get_template, TemplateDoesNotExist
 from django.views.decorators.http import require_POST
 from django.http import JsonResponse
-from .notifications import create_notification, create_notifications_for_users
+from .notifications import create_notification, create_notifications_for_users, users_with_roles
 from django.utils.http import url_has_allowed_host_and_scheme
 
 from .models import DemoURL
@@ -690,9 +690,7 @@ def client_form(request):
                 file=form.cleaned_data['file_upload']
             )
             project_file.save()
-            recipients = User.objects.filter(
-                Q(is_superuser=True) | Q(profile__role='project_manager')
-            ).distinct()
+            recipients = users_with_roles(['project_manager'], include_superusers=True)
             create_notifications_for_users(
                 recipients,
                 f"New client project request submitted: {project.title}",
@@ -2782,12 +2780,9 @@ def submit_leave_request(request):
             status='pending'
         )
         required_role = leave_request.required_approver_role()
-        role_hierarchy = {'team_leader': 1, 'project_manager': 2, 'admin': 3}
-        approvers = User.objects.filter(
-            profile__role__in=[
-                role for role, rank in role_hierarchy.items()
-                if rank >= role_hierarchy.get(required_role, 3)
-            ]
+        approvers = users_with_roles(
+            [required_role],
+            include_superusers=(required_role == 'admin')
         )
         create_notifications_for_users(
             approvers,
